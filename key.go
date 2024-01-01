@@ -727,6 +727,23 @@ func (k *Key) parseFloat64s(strs []string, addInvalid, returnOnInvalid bool) ([]
 	return vals, err
 }
 
+func (k *Key) parseValueComments() []ValueComment {
+	vs := make([]ValueComment, 1+len(k.shadows))
+	vs[0] = ValueComment{
+		Value:   k.value,
+		Comment: k.Comment,
+	}
+
+	for i, s := range k.shadows {
+		vs[i+1] = ValueComment{
+			Value:   s.value,
+			Comment: s.Comment,
+		}
+	}
+
+	return vs
+}
+
 // parseInts transforms strings to ints.
 func (k *Key) parseInts(strs []string, addInvalid, returnOnInvalid bool) ([]int, error) {
 	vals := make([]int, 0, len(strs))

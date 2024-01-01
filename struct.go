@@ -75,7 +75,17 @@ func parseDelim(actual string) string {
 	return ","
 }
 
-var reflectTime = reflect.TypeOf(time.Now()).Kind()
+// ValueComment 解析 key = value # Comment 的行
+// 其中 Comment 是注释部分（注意：包含 # 或者 ; ）
+type ValueComment struct {
+	Value   string
+	Comment string
+}
+
+var (
+	reflectTypeTime         = reflect.TypeOf(time.Now())
+	reflectTypeValueComment = reflect.TypeOf(ValueComment{})
+)
 
 // setSliceWithProperType sets proper values to slice based on its type.
 func setSliceWithProperType(key *Key, field reflect.Value, delim string, allowShadow, isStrict bool) error {
@@ -94,7 +104,8 @@ func setSliceWithProperType(key *Key, field reflect.Value, delim string, allowSh
 	var vals interface{}
 	var err error
 
-	sliceOf := field.Type().Elem().Kind()
+	fieldType := field.Type().Elem()
+	sliceOf := fieldType.Kind()
 	switch sliceOf {
 	case reflect.String:
 		vals = strs
@@ -110,10 +121,15 @@ func setSliceWithProperType(key *Key, field reflect.Value, delim string, allowSh
 		vals, err = key.parseFloat64s(strs, true, false)
 	case reflect.Bool:
 		vals, err = key.parseBools(strs, true, false)
-	case reflectTime:
-		vals, err = key.parseTimesFormat(time.RFC3339, strs, true, false)
 	default:
-		return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+		switch fieldType {
+		case reflectTypeTime:
+			vals, err = key.parseTimesFormat(time.RFC3339, strs, true, false)
+		case reflectTypeValueComment:
+			vals = key.parseValueComments()
+		default:
+			return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+		}
 	}
 	if err != nil && isStrict {
 		return err
@@ -136,8 +152,13 @@ func setSliceWithProperType(key *Key, field reflect.Value, delim string, allowSh
 			slice.Index(i).Set(reflect.ValueOf(vals.([]float64)[i]))
 		case reflect.Bool:
 			slice.Index(i).Set(reflect.ValueOf(vals.([]bool)[i]))
-		case reflectTime:
-			slice.Index(i).Set(reflect.ValueOf(vals.([]time.Time)[i]))
+		default:
+			switch fieldType {
+			case reflectTypeTime:
+				slice.Index(i).Set(reflect.ValueOf(vals.([]time.Time)[i]))
+			case reflectTypeValueComment:
+				slice.Index(i).Set(reflect.ValueOf(vals.([]ValueComment)[i]))
+			}
 		}
 	}
 	field.Set(slice)
@@ -245,20 +266,25 @@ func setWithProperType(t reflect.Type, key *Key, field reflect.Value, delim stri
 		} else {
 			field.SetFloat(floatVal)
 		}
-	case reflectTime:
-		timeVal, err := key.Time()
-		if err != nil {
-			return wrapStrictError(err, isStrict)
-		}
-		if isPtr {
-			field.Set(reflect.ValueOf(&timeVal))
-		} else {
-			field.Set(reflect.ValueOf(timeVal))
-		}
+
 	case reflect.Slice:
 		return setSliceWithProperType(key, field, delim, allowShadow, isStrict)
+
 	default:
-		return fmt.Errorf("unsupported type %q", t)
+		switch vt {
+		case reflectTypeTime:
+			timeVal, err := key.Time()
+			if err != nil {
+				return wrapStrictError(err, isStrict)
+			}
+			if isPtr {
+				field.Set(reflect.ValueOf(&timeVal))
+			} else {
+				field.Set(reflect.ValueOf(timeVal))
+			}
+		default:
+			return fmt.Errorf("unsupported type %q", t)
+		}
 	}
 	return nil
 }
@@ -461,7 +487,8 @@ func reflectSliceWithProperType(key *Key, field reflect.Value, delim string, all
 	if field.Len() == 0 {
 		return nil
 	}
-	sliceOf := field.Type().Elem().Kind()
+	elem := field.Type().Elem()
+	sliceOf := elem.Kind()
 
 	if allowShadow {
 		var keyWithShadows *Key
@@ -478,10 +505,13 @@ func reflectSliceWithProperType(key *Key, field reflect.Value, delim string, all
 				val = fmt.Sprint(slice.Index(i).Float())
 			case reflect.Bool:
 				val = fmt.Sprint(slice.Index(i).Bool())
-			case reflectTime:
-				val = slice.Index(i).Interface().(time.Time).Format(time.RFC3339)
 			default:
-				return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+				switch elem {
+				case reflectTypeTime:
+					val = slice.Index(i).Interface().(time.Time).Format(time.RFC3339)
+				default:
+					return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+				}
 			}
 
 			if i == 0 {
@@ -507,10 +537,13 @@ func reflectSliceWithProperType(key *Key, field reflect.Value, delim string, all
 			buf.WriteString(fmt.Sprint(slice.Index(i).Float()))
 		case reflect.Bool:
 			buf.WriteString(fmt.Sprint(slice.Index(i).Bool()))
-		case reflectTime:
-			buf.WriteString(slice.Index(i).Interface().(time.Time).Format(time.RFC3339))
 		default:
-			return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+			switch elem {
+			case reflectTypeTime:
+				buf.WriteString(slice.Index(i).Interface().(time.Time).Format(time.RFC3339))
+			default:
+				return fmt.Errorf("unsupported type '[]%s'", sliceOf)
+			}
 		}
 		buf.WriteString(delim)
 	}
@@ -531,8 +564,7 @@ func reflectWithProperType(t reflect.Type, key *Key, field reflect.Value, delim 
 		key.SetValue(fmt.Sprint(field.Uint()))
 	case reflect.Float32, reflect.Float64:
 		key.SetValue(fmt.Sprint(field.Float()))
-	case reflectTime:
-		key.SetValue(fmt.Sprint(field.Interface().(time.Time).Format(time.RFC3339)))
+
 	case reflect.Slice:
 		return reflectSliceWithProperType(key, field, delim, allowShadow)
 	case reflect.Ptr:
@@ -540,7 +572,12 @@ func reflectWithProperType(t reflect.Type, key *Key, field reflect.Value, delim 
 			return reflectWithProperType(t.Elem(), key, field.Elem(), delim, allowShadow)
 		}
 	default:
-		return fmt.Errorf("unsupported type %q", t)
+		switch t {
+		case reflectTypeTime:
+			key.SetValue(fmt.Sprint(field.Interface().(time.Time).Format(time.RFC3339)))
+		default:
+			return fmt.Errorf("unsupported type %q", t)
+		}
 	}
 	return nil
 }
@@ -561,9 +598,12 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
-	case reflectTime:
-		t, ok := v.Interface().(time.Time)
-		return ok && t.IsZero()
+	default:
+		switch v.Type() {
+		case reflectTypeTime:
+			t, ok := v.Interface().(time.Time)
+			return ok && t.IsZero()
+		}
 	}
 	return false
 }
