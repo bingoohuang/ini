@@ -64,10 +64,10 @@ func (s *Section) SetBody(body string) {
 
 // NewKey creates a new key to given section.
 func (s *Section) NewKey(name, val string) (*Key, error) {
-	return s.NewKey2(name, val, "", false)
+	return s.NewKey2(name, val, "", "", false)
 }
 
-func (s *Section) NewKey2(name, val, comment string, isAutoIncr bool) (*Key, error) {
+func (s *Section) NewKey2(name, val, comment, inlineComment string, isAutoIncr bool) (*Key, error) {
 	if len(name) == 0 {
 		return nil, errors.New("error creating new key: empty key name")
 	} else if s.f.options.Insensitive || s.f.options.InsensitiveKeys {
@@ -81,7 +81,7 @@ func (s *Section) NewKey2(name, val, comment string, isAutoIncr bool) (*Key, err
 
 	if inSlice(name, s.keyList) {
 		if s.f.options.AllowShadows {
-			if err := s.keys[name].addShadow(val, comment); err != nil {
+			if err := s.keys[name].addShadow(val, comment, inlineComment); err != nil {
 				return nil, err
 			}
 		} else {
@@ -92,7 +92,7 @@ func (s *Section) NewKey2(name, val, comment string, isAutoIncr bool) (*Key, err
 	}
 
 	s.keyList = append(s.keyList, name)
-	k := newKey(s, name, val, comment)
+	k := newKey(s, name, val, comment, inlineComment)
 	k.isAutoIncrement = isAutoIncr
 	s.keys[name] = k
 	s.keysHash[name] = val

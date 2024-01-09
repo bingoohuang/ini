@@ -78,8 +78,9 @@ func parseDelim(actual string) string {
 // ValueComment 解析 key = value # Comment 的行
 // 其中 Comment 是注释部分（注意：包含 # 或者 ; ）
 type ValueComment struct {
-	Value   string
-	Comment string
+	Value         string
+	Comment       string
+	InlineComment string
 }
 
 var (
@@ -515,7 +516,7 @@ func reflectSliceWithProperType(key *Key, field reflect.Value, delim string, all
 			}
 
 			if i == 0 {
-				keyWithShadows = newKey(key.s, key.name, val, key.Comment)
+				keyWithShadows = newKey(key.s, key.name, val, key.Comment, key.InlineComment)
 			} else {
 				_ = keyWithShadows.AddShadow(val)
 			}

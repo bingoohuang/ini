@@ -45,9 +45,10 @@ type parser struct {
 	buf     *bufio.Reader
 	options parserOptions
 
-	isEOF   bool
-	count   int
-	comment *bytes.Buffer
+	isEOF         bool
+	count         int
+	inlineComment string
+	comment       *bytes.Buffer
 }
 
 func (p *parser) debug(format string, args ...interface{}) {
@@ -282,6 +283,7 @@ func (p *parser) readValue(in []byte, bufferSize int) (string, error) {
 		}
 
 		if i > -1 {
+			p.inlineComment = line[i:]
 			p.comment.WriteString(line[i:])
 			line = strings.TrimSpace(line[:i])
 		}
@@ -509,7 +511,7 @@ func (f *File) parse(reader io.Reader) (err error) {
 
 		comment := strings.TrimSpace(p.comment.String())
 		p.comment.Reset()
-		key, err := section.NewKey2(kname, value, comment, isAutoIncr)
+		key, err := section.NewKey2(kname, value, comment, p.inlineComment, isAutoIncr)
 		if err != nil {
 			return err
 		}

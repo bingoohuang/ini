@@ -27,6 +27,7 @@ import (
 type Key struct {
 	s               *Section
 	Comment         string
+	InlineComment   string
 	name            string
 	value           string
 	isAutoIncrement bool
@@ -39,16 +40,17 @@ type Key struct {
 }
 
 // newKey simply return a key object with given values.
-func newKey(s *Section, name, val, comment string) *Key {
+func newKey(s *Section, name, val, comment, inlineComment string) *Key {
 	return &Key{
-		s:       s,
-		name:    name,
-		value:   val,
-		Comment: comment,
+		s:             s,
+		name:          name,
+		value:         val,
+		Comment:       comment,
+		InlineComment: inlineComment,
 	}
 }
 
-func (k *Key) addShadow(val, comment string) error {
+func (k *Key) addShadow(val, comment, inlineComment string) error {
 	if k.isShadow {
 		return errors.New("cannot add shadow to another shadow key")
 	} else if k.isAutoIncrement || k.isBooleanType {
@@ -67,7 +69,7 @@ func (k *Key) addShadow(val, comment string) error {
 		}
 	}
 
-	shadow := newKey(k.s, k.name, val, comment)
+	shadow := newKey(k.s, k.name, val, comment, inlineComment)
 	shadow.isShadow = true
 	k.shadows = append(k.shadows, shadow)
 	return nil
@@ -78,7 +80,7 @@ func (k *Key) AddShadow(val string) error {
 	if !k.s.f.options.AllowShadows {
 		return errors.New("shadow key is not allowed")
 	}
-	return k.addShadow(val, k.Comment)
+	return k.addShadow(val, k.Comment, k.InlineComment)
 }
 
 func (k *Key) addNestedValue(val string) error {
@@ -730,14 +732,16 @@ func (k *Key) parseFloat64s(strs []string, addInvalid, returnOnInvalid bool) ([]
 func (k *Key) parseValueComments() []ValueComment {
 	vs := make([]ValueComment, 1+len(k.shadows))
 	vs[0] = ValueComment{
-		Value:   k.value,
-		Comment: k.Comment,
+		Value:         k.value,
+		Comment:       k.Comment,
+		InlineComment: k.InlineComment,
 	}
 
 	for i, s := range k.shadows {
 		vs[i+1] = ValueComment{
-			Value:   s.value,
-			Comment: s.Comment,
+			Value:         s.value,
+			Comment:       s.Comment,
+			InlineComment: s.InlineComment,
 		}
 	}
 
