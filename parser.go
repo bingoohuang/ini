@@ -282,6 +282,7 @@ func (p *parser) readValue(in []byte, bufferSize int) (string, error) {
 			i = strings.IndexAny(line, "#;")
 		}
 
+		p.inlineComment = ""
 		if i > -1 {
 			p.inlineComment = line[i:]
 			p.comment.WriteString(line[i:])
