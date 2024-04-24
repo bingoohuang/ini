@@ -1642,6 +1642,8 @@ key2 =
 
 [section2]
   key3 = value3
+  key4 = 'value4'
+  key5 = "value5"
 `))
 		require.NoError(t, err)
 		require.NotNil(t, f)
@@ -1649,5 +1651,7 @@ key2 =
 		assert.Equal(t, "value1", f.Section("section").Key("key1").String())
 		assert.Equal(t, "", f.Section("section").Key("key2").String())
 		assert.Equal(t, "value3", f.Section("section2").Key("key3").String())
+		assert.Equal(t, "value4", f.Section("section2").Key("key4").String())
+		assert.Equal(t, "value5", f.Section("section2").Key("key5").String())
 	})
 }
